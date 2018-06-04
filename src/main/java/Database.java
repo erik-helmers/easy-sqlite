@@ -24,14 +24,19 @@ public class Database<T> {
     private HashMap<Class, List<ConverterIntrf>> converters = new HashMap<>();
 
 
+    //region inits
+    // ============================================== INITS ===============================================
+
+
     public Database(Class<T> clss, String url, File populate_file){
         validate_class(clss);
         init_connection(url, populate_file);
     }
 
-    //region inits
-    // ============================================== INITS ===============================================
-
+    public Database(Class<T> clss, String url, String populate){
+        validate_class(clss);
+        init_connection(url, populate);
+    }
     public Database(Class<T> clss, Connection connection){
         validate_class(clss);
         this.connection = connection;
