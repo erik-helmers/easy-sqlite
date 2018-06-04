@@ -1,5 +1,6 @@
-import annotations.Column;
-import annotations.Table;
+import easysqlite.Database;
+import easysqlite.annotations.Column;
+import easysqlite.annotations.Table;
 import lombok.Builder;
 import lombok.ToString;
 import org.junit.Before;

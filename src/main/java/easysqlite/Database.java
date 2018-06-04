@@ -1,6 +1,8 @@
-import annotations.Column;
-import annotations.Converter;
-import annotations.Table;
+package easysqlite;
+
+import easysqlite.annotations.Column;
+import easysqlite.annotations.Converter;
+import easysqlite.annotations.Table;
 
 import java.io.File;
 import java.io.IOException;
@@ -341,7 +343,7 @@ public class Database<T> {
                 Class support = (field.getAnnotation(Converter.class)).target();
                 try { register_converter(support, (ConverterIntrf) field.get(null)); }
                 catch (IllegalAccessException e){
-                    throw new Error("ConverterIntrf should be static !");
+                    throw new Error("easysqlite.ConverterIntrf should be static !");
                 }
             }
         }
