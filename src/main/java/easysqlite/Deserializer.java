@@ -1,5 +1,5 @@
 package easysqlite;
 
-public  interface Converter {
+public  interface Deserializer {
     public Object convert(String from);
 }

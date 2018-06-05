@@ -1,9 +1,6 @@
 package easysqlite;
 
-import easysqlite.annotations.AllFieldsTable;
-import easysqlite.annotations.Column;
-import easysqlite.annotations.ConverterTarget;
-import easysqlite.annotations.Table;
+import easysqlite.annotations.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,13 +9,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
-public class Database<T> {
+public class Repository<T> {
 
 
     private Connection connection;
@@ -29,7 +23,7 @@ public class Database<T> {
     private List<String> columns_name;
     private String formatted_columns_name;
 
-    private HashMap<Class, List<Converter>> converters = new HashMap<>();
+    private HashMap<Class, List<Deserializer>> deserializers = new HashMap<>();
 
 
     //region inits
@@ -39,16 +33,16 @@ public class Database<T> {
     // =========================================== CONSTRUCTORS ===========================================
 
 
-    public Database(Class<T> clss, String url, File populate_file){
+    public Repository(Class<T> clss, String url, File populate_file){
         validate_class(clss);
-        init_connection(url, populate_file);
+        connection = create_connection(url, populate_file);
     }
 
-    public Database(Class<T> clss, String url, String populate){
+    public Repository(Class<T> clss, String url, String populate){
         validate_class(clss);
-        init_connection(url, populate);
+        connection = create_connection(url, populate);
     }
-    public Database(Class<T> clss, Connection connection){
+    public Repository(Class<T> clss, Connection connection){
         validate_class(clss);
         this.connection = connection;
     }
@@ -57,6 +51,46 @@ public class Database<T> {
 
     //region init-utils
     // ============================================ INIT-UTILS ============================================
+
+    /**
+     * Create a connection to path, and execute populate statement
+     * @param path The path to the database
+     * @param populate The populate query
+     */
+    public static Connection create_connection(String path, String populate){
+
+        String url = "jdbc:sqlite:"+path;
+        Connection conn = null;
+
+        try {
+            conn = DriverManager.getConnection(url);
+            PreparedStatement stmt = conn.prepareStatement(populate);
+            stmt.execute();
+            System.out.println("======== Initialized table !");
+        } catch (SQLException e) {
+            throw new Error(e);
+        }
+
+        return conn;
+    }
+
+    /**
+     * Extract content from populate_file and passes it to create_connection(String, String)
+     * @param path The path to the database
+     * @param populate_file The populate file
+     */
+
+    public static Connection create_connection(String path, File populate_file){
+        String populate;
+        try{
+            populate = new String(Files.readAllBytes(populate_file.toPath()));
+            System.out.println(populate);
+        } catch (IOException e){
+            throw new Error(e);
+        }
+
+        return create_connection(path, populate);
+    }
 
     /**
      * Check class validity
@@ -72,57 +106,18 @@ public class Database<T> {
         this.clss = clss;
 
         if (clss.isAnnotationPresent(Table.class)){
-            this.table_name = clss.getAnnotation(Table.class).name();
+            this.table_name = clss.getAnnotation(Table.class).value();
             this.columns = get_columns_field();
             this.columns_name = get_columns_name_from_annot();
         } else if (clss.isAnnotationPresent(AllFieldsTable.class)){
-            this.table_name = clss.getAnnotation(AllFieldsTable.class).name();
+            this.table_name = clss.getAnnotation(AllFieldsTable.class).value();
             this.columns = get_all_fields();
             this.columns_name = get_columns_name_from_field();
         }
 
-        set_default_converters();
-        scan_converters();
-    }
-
-    /**
-     * Create a connection to path, and execute populate statement
-     * @param path The path to the database
-     * @param populate The populate query
-     */
-    private void init_connection(String path, String populate){
-
-        String url = "jdbc:sqlite:"+path;
-        Connection conn = null;
-
-        try {
-            conn = DriverManager.getConnection(url);
-            PreparedStatement stmt = conn.prepareStatement(populate);
-            stmt.execute();
-            System.out.println("======== Initialized table !");
-        } catch (SQLException e) {
-            throw new Error(e);
-        }
-
-        this.connection = conn;
-    }
-
-    /**
-     * Extract content from populate_file and passes it to init_connection(String, String)
-     * @param path The path to the database
-     * @param populate_file The populate file
-     */
-
-    private void init_connection(String path, File populate_file){
-        String populate;
-        try{
-            populate = new String(Files.readAllBytes(populate_file.toPath()));
-            System.out.println(populate);
-        } catch (IOException e){
-            throw new Error(e);
-        }
-
-        init_connection(path, populate);
+        this.formatted_columns_name = format_columns_name();
+        set_default_deserializer();
+        scan_deserializers();
     }
 
 
@@ -140,13 +135,17 @@ public class Database<T> {
      */
     public void save(T obj) throws SQLException {
 
+
+        System.out.println("========== TRYING TO SAVE : "+obj.toString());
         List<Object> values = get_columns_values(columns, obj);
 
         String sql = forge_sql_insert_statement();
-
+        
         try (PreparedStatement pstmt = connection.prepareStatement(sql)){
             for (int i=0; i<values.size(); i++) {
-                pstmt.setString(i+1, values.get(i).toString());
+                if (values.get(i) != null) {
+                    pstmt.setString(i+1, values.get(i).toString()); //TODO: upgrade this shit -> serializer instead of toString()
+                } else { pstmt.setString(i+1, null); }
             }
             pstmt.execute();
         }
@@ -203,10 +202,36 @@ public class Database<T> {
     }
 
     private List<String> get_columns_name_from_annot(){
-        return columns.stream()
-                .map(x -> x.getAnnotation(Column.class))
-                .map(Column::name)
-                .collect(Collectors.toList());
+        List<String> output = new ArrayList<>();
+        for (Field field : columns){
+            if (field.isAnnotationPresent(Column.class)) {
+                Column column = field.getAnnotation(Column.class);
+                if (column.value().equals(""))
+                    output.add(field.getName());
+                else output.add(column.value());
+            }
+            else {
+                IdColumn column = field.getAnnotation(IdColumn.class);
+                if (column.value().equals(""))
+                    output.add(field.getName());
+                else output.add(column.value());
+            }
+        }
+        return output;
+    }
+
+    /**
+     * Get fields anotated with @Column
+     * @return List of fields
+     */
+    private List<Field> get_columns_field_incld_id(){
+        List<Field> output = new ArrayList<>();
+        for (Field field: clss.getFields()){
+            if (field.isAnnotationPresent(Column.class) || field.isAnnotationPresent(IdColumn.class)){
+                output.add(field);
+            }
+        }
+        return output;
     }
 
     private List<String> get_columns_name_from_field(){
@@ -233,6 +258,11 @@ public class Database<T> {
         return output;
     }
 
+    private String format_columns_name(){
+        return columns_name.stream()
+                .collect(Collectors.joining(","));
+    }
+
     //endregion
 
 
@@ -251,22 +281,26 @@ public class Database<T> {
 
         String sql = forge_sql_query_statement(column);
 
+        List<Field> cols = get_columns_field_incld_id();
+        List<String> nms = get_columns_name_from_annot();
+
         List<T> output = new ArrayList<>();
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, value);
             ResultSet rs = pstmt.executeQuery();
             while (rs.next())
-                output.add(result_set_to_object(rs, columns));
+                output.add(result_set_to_object(rs, cols, nms));
         }
         return output;
     }
 
 
-    private T result_set_to_object(ResultSet rs, List<Field> columns) throws Exception{
+    private T result_set_to_object(ResultSet rs, List<Field> columns, List<String> columns_name) throws Exception{
 
         T obj = get_no_argument_constructor().newInstance();
+        Iterator<String> names = columns_name.iterator();
         for (Field field : columns){
-            String result = rs.getString(field.getAnnotation(Column.class).name());
+            String result = rs.getString(names.next());
             Object converted = convert(result, field.getType());
             field.set(obj, converted);
         }
@@ -283,7 +317,7 @@ public class Database<T> {
 
         String sql = "SELECT %s FROM %s WHERE %s=?";
 
-        String output =  String.format(sql, columns_name, table_name,  column);
+        String output =  String.format(sql, formatted_columns_name, table_name,  column);
         System.out.println(output);
         return output;
     }
@@ -305,7 +339,7 @@ public class Database<T> {
                 .collect(Collectors.joining(","));
 
 
-        return String.format(sql, table_name, columns_name, values_places);
+        return String.format(sql, table_name, formatted_columns_name, values_places);
 
     }
     //endregion
@@ -334,31 +368,31 @@ public class Database<T> {
     // ====================================== TYPE-CONVERSION-INITS =======================================
 
 
-    private void set_default_converters(){
-        register_converter(int.class, Integer::parseInt);
-        register_converter(float.class, Float::parseFloat);
-        register_converter(String.class, x->x);
+    private void set_default_deserializer(){
+        register_deserializers(int.class, Integer::parseInt);
+        register_deserializers(float.class, Float::parseFloat);
+        register_deserializers(String.class, x->x);
     }
 
 
-    void register_converter(Class support, Converter converter){
-        if (!converters.containsKey(support)){
-            converters.put(support, new ArrayList<>());
+    void register_deserializers(Class support, Deserializer converter){
+        if (!deserializers.containsKey(support)){
+            deserializers.put(support, new ArrayList<>());
         }
-        converters.get(support).add(converter);
+        deserializers.get(support).add(converter);
     }
 
 
-    private void scan_converters(){
+    private void scan_deserializers(){
         for (Field field: clss.getFields()){
             if (field.isAnnotationPresent(ConverterTarget.class)) {
 
-                Class[] supported = (field.getAnnotation(ConverterTarget.class)).target();
+                Class[] supported = (field.getAnnotation(ConverterTarget.class)).value();
 
                 for (Class support: supported){
-                    try { register_converter(support, (Converter) field.get(null)); }
+                    try { register_deserializers(support, (Deserializer) field.get(null)); }
                     catch (IllegalAccessException e){
-                        throw new Error("easysqlite.Converter should be static !");
+                        throw new Error("Deserializer field should be static should be static !");
                     }
                 }
 
@@ -377,9 +411,9 @@ public class Database<T> {
      */
     private Object convert(String from, Class target) throws ClassCastException{
 
-        // First fallback : use scanned converters
-        if (converters.containsKey(target)){
-            List<Converter> adapted_converters = converters.get(target);
+        // First fallback : use scanned deserializers
+        if (deserializers.containsKey(target)){
+            List<Deserializer> adapted_converters = deserializers.get(target);
             for (int i=adapted_converters.size()-1; i>=0; i--)
             {
                 Object x = adapted_converters.get(i).convert(from);

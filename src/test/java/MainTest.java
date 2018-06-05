@@ -1,4 +1,4 @@
-import easysqlite.Database;
+import easysqlite.Repository;
 import easysqlite.annotations.Column;
 import easysqlite.annotations.Table;
 import lombok.Builder;
@@ -14,7 +14,7 @@ import java.util.UUID;
 
 public class MainTest {
 
-    Database<Vehicle> main;
+    Repository<Vehicle> main;
 
     @Before
     public void setUp() throws Exception {
@@ -24,7 +24,7 @@ public class MainTest {
     @Test
     public void create(){
         Path file = Paths.get(getClass().getClassLoader().getResource("vehicles_create.sql").getFile());
-        main = new Database<>(Vehicle.class, "vehicles.db", file.toFile());
+        main = new Repository<>(Vehicle.class, "vehicles.db", file.toFile());
     }
 
     @Test
@@ -70,16 +70,16 @@ public class MainTest {
     }
 
     @ToString
-    @Table(name="cars")
+    @Table("cars")
     public static class Vehicle{
 
-        @Column(name="id")
+        @Column("id")
         public String id;
-        @Column(name="proprietary")
+        @Column("proprietary")
         public String proprietary;
-        @Column(name="seats")
+        @Column("seats")
         public Double seats;
-        @Column(name="price")
+        @Column
         public int price;
 
 
