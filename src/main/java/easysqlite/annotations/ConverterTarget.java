@@ -7,6 +7,6 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Converter {
-    Class target();
+public @interface ConverterTarget {
+    Class[] target();
 }

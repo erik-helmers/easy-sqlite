@@ -64,29 +64,38 @@ public class MainTest {
                 main.search("proprietary", vehicle.proprietary).get(0).proprietary.equals(vehicle.proprietary) ?
                         "OK" : "FAIL");
 
+        Double my_number = new Double("3");
 
 
     }
 
     @ToString
     @Table(name="cars")
-    private static class Vehicle{
+    public static class Vehicle{
 
         @Column(name="id")
         public String id;
         @Column(name="proprietary")
         public String proprietary;
         @Column(name="seats")
-        public int seats;
+        public Double seats;
         @Column(name="price")
         public int price;
 
 
         @Builder
-        public Vehicle(String id, String proprietary, int seats, int price) {
+        public Vehicle(String id, String proprietary, Double seats, int price) {
             this.id = id;
             this.proprietary = proprietary;
             this.seats = seats;
+            this.price = price;
+        }
+
+        @Builder
+        public Vehicle(String id, String proprietary, int seats, int price) {
+            this.id = id;
+            this.proprietary = proprietary;
+            this.seats = new Double(seats);
             this.price = price;
         }
 
@@ -94,5 +103,7 @@ public class MainTest {
 
 
     }
+
+
 
 }

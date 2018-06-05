@@ -1,7 +1,8 @@
 package easysqlite;
 
+import easysqlite.annotations.AllFieldsTable;
 import easysqlite.annotations.Column;
-import easysqlite.annotations.Converter;
+import easysqlite.annotations.ConverterTarget;
 import easysqlite.annotations.Table;
 
 import java.io.File;
@@ -12,6 +13,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -21,13 +23,20 @@ public class Database<T> {
 
     private Connection connection;
     private Class<T> clss;
-    private Table table;
+    private String table_name;
+
     private List<Field> columns;
-    private HashMap<Class, List<ConverterIntrf>> converters = new HashMap<>();
+    private List<String> columns_name;
+    private String formatted_columns_name;
+
+    private HashMap<Class, List<Converter>> converters = new HashMap<>();
 
 
     //region inits
     // ============================================== INITS ===============================================
+
+    //region constructors
+    // =========================================== CONSTRUCTORS ===========================================
 
 
     public Database(Class<T> clss, String url, File populate_file){
@@ -44,22 +53,36 @@ public class Database<T> {
         this.connection = connection;
     }
 
+    //endregion
+
+    //region init-utils
+    // ============================================ INIT-UTILS ============================================
+
     /**
      * Check class validity
      * @param clss the class to test
      * @return validity
      */
-    private void validate_class(Class<T> clss){
-        if (!clss.isAnnotationPresent(Table.class)){
-            throw new IllegalArgumentException("Class should be annotated with @Table");
+     private void validate_class(Class<T> clss){
+
+        if (!clss.isAnnotationPresent(Table.class) && !clss.isAnnotationPresent(AllFieldsTable.class)){
+            throw new IllegalArgumentException("Class should be annotated with @Table or @AllFieldsTable");
         }
+
         this.clss = clss;
-        this.table = clss.getAnnotation(Table.class);
-        this.columns = get_columns(clss);
+
+        if (clss.isAnnotationPresent(Table.class)){
+            this.table_name = clss.getAnnotation(Table.class).name();
+            this.columns = get_columns_field();
+            this.columns_name = get_columns_name_from_annot();
+        } else if (clss.isAnnotationPresent(AllFieldsTable.class)){
+            this.table_name = clss.getAnnotation(AllFieldsTable.class).name();
+            this.columns = get_all_fields();
+            this.columns_name = get_columns_name_from_field();
+        }
 
         set_default_converters();
         scan_converters();
-
     }
 
     /**
@@ -102,6 +125,9 @@ public class Database<T> {
         init_connection(path, populate);
     }
 
+
+    //endregion
+
     //endregion
 
     //region saves
@@ -116,7 +142,7 @@ public class Database<T> {
 
         List<Object> values = get_columns_values(columns, obj);
 
-        String sql = forge_sql_insert_statement(table, columns);
+        String sql = forge_sql_insert_statement();
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)){
             for (int i=0; i<values.size(); i++) {
@@ -135,7 +161,7 @@ public class Database<T> {
 
     public void save(List<T> objects) throws SQLException {
 
-        String sql = forge_sql_insert_statement(table, columns);
+        String sql = forge_sql_insert_statement();
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             int tour = 0;
@@ -153,17 +179,15 @@ public class Database<T> {
         }
     }
 
-    //endregion
 
-    //region saves-utils
-    // =========================================== SAVES-UTILS ============================================
+    //region utils
+    // ============================================== UTILS ===============================================
 
     /**
      * Get fields anotated with @Column
-     * @param clss the class to test
      * @return List of fields
      */
-    private List<Field> get_columns(Class clss){
+    private List<Field> get_columns_field(){
         List<Field> output = new ArrayList<>();
         for (Field field: clss.getFields()){
             if (field.isAnnotationPresent(Column.class)){
@@ -173,50 +197,42 @@ public class Database<T> {
         return output;
     }
 
+    private List<Field> get_all_fields(){
+        // TODO: 05/06/18 add @Exclude ?
+        return new ArrayList<>(Arrays.asList(clss.getFields()));
+    }
 
+    private List<String> get_columns_name_from_annot(){
+        return columns.stream()
+                .map(x -> x.getAnnotation(Column.class))
+                .map(Column::name)
+                .collect(Collectors.toList());
+    }
+
+    private List<String> get_columns_name_from_field(){
+        return columns.stream()
+                .map(Field::getName)
+                .collect(Collectors.toList());
+    }
     /**
      * Get the values of fields
      * @param fields the fields to test
      * @param obj the object to use
      * @return list of object: values of the fields
      */
-    List<Object> get_columns_values(List<Field> fields, T obj){
+    private List<Object> get_columns_values(List<Field> fields, T obj){
         List<Object> output = new ArrayList<>();
         for (Field field : fields) {
+            System.out.println("Testing field : "+field.getName());
             try {
                 output.add(field.get(obj));
             } catch (IllegalAccessException e) {
-                throw new Error("Fields should be accessible");
+                throw new Error(e);
             }
         }
         return output;
     }
 
-    /**
-     * Create an initial statement of form
-     *  "INSERT INTO {tablename}({list of columns} VALUES(?,?,?...?)"
-     * @param table annotation
-     * @param columns fields annotated by column
-     * @return sql statement ready for PreparedStatement
-     */
-    private String forge_sql_insert_statement(Table table, List<Field> columns){
-
-
-        String sql = "INSERT into %s(%s) VALUES(%s)";
-
-        String columns_name = columns.stream()
-                .map(x -> x.getAnnotation(Column.class))
-                .map(Column::name)
-                .collect(Collectors.joining(","));
-
-        String values_places = columns.stream()
-                .map(x -> "?")
-                .collect(Collectors.joining(","));
-
-
-        return String.format(sql, table.name(), columns_name, values_places);
-
-    }
     //endregion
 
 
@@ -233,7 +249,7 @@ public class Database<T> {
 
     public List<T> search(String column, String value) throws Exception{
 
-        String sql = forge_sql_query_statement(table, columns, column);
+        String sql = forge_sql_query_statement(column);
 
         List<T> output = new ArrayList<>();
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
@@ -245,20 +261,6 @@ public class Database<T> {
         return output;
     }
 
-
-    private String forge_sql_query_statement(Table table, List<Field> columns, String column){
-
-        String sql = "SELECT %s FROM %s WHERE %s=?";
-
-        String columns_name = columns.stream()
-                .map(x -> x.getAnnotation(Column.class))
-                .map(Column::name)
-                .collect(Collectors.joining(","));
-
-        String output =  String.format(sql, columns_name, table.name(),  column);
-        System.out.println(output);
-        return output;
-    }
 
     private T result_set_to_object(ResultSet rs, List<Field> columns) throws Exception{
 
@@ -273,8 +275,44 @@ public class Database<T> {
 
     //endregion
 
-    //region utils
-    // ============================================== UTILS ===============================================
+    //region sql_forgers
+    // =========================================== SQL_FORGERS ============================================
+
+
+    private String forge_sql_query_statement(String column){
+
+        String sql = "SELECT %s FROM %s WHERE %s=?";
+
+        String output =  String.format(sql, columns_name, table_name,  column);
+        System.out.println(output);
+        return output;
+    }
+
+
+
+    /**
+     * Create an initial statement of form
+     *  "INSERT INTO {tablename}({list of columns} VALUES(?,?,?...?)"
+     * @return sql statement ready for PreparedStatement
+     */
+    private String forge_sql_insert_statement(){
+
+
+        String sql = "INSERT into %s(%s) VALUES(%s)";
+
+        String values_places = columns.stream()
+                .map(x -> "?")
+                .collect(Collectors.joining(","));
+
+
+        return String.format(sql, table_name, columns_name, values_places);
+
+    }
+    //endregion
+
+    //region generic-utils
+    // ========================================== GENERIC-UTILS ===========================================
+
 
     private Constructor<T> get_no_argument_constructor()  {
         try { return clss.getConstructor(); }
@@ -292,6 +330,9 @@ public class Database<T> {
     //region type conversion
     // ========================================= TYPE CONVERSION ========================================== 
 
+    //region type-conversion-inits
+    // ====================================== TYPE-CONVERSION-INITS =======================================
+
 
     private void set_default_converters(){
         register_converter(int.class, Integer::parseInt);
@@ -300,12 +341,32 @@ public class Database<T> {
     }
 
 
-    void register_converter(Class support, ConverterIntrf converter){
+    void register_converter(Class support, Converter converter){
         if (!converters.containsKey(support)){
             converters.put(support, new ArrayList<>());
         }
         converters.get(support).add(converter);
     }
+
+
+    private void scan_converters(){
+        for (Field field: clss.getFields()){
+            if (field.isAnnotationPresent(ConverterTarget.class)) {
+
+                Class[] supported = (field.getAnnotation(ConverterTarget.class)).target();
+
+                for (Class support: supported){
+                    try { register_converter(support, (Converter) field.get(null)); }
+                    catch (IllegalAccessException e){
+                        throw new Error("easysqlite.Converter should be static !");
+                    }
+                }
+
+            }
+        }
+    }
+
+    //endregion
 
     /**
      * Convert a String object to specified object type
@@ -314,10 +375,25 @@ public class Database<T> {
      * @return the converted object if successful
      * @throws ClassCastException
      */
-    public  Object convert(String from, Class target) throws ClassCastException{
-        // First try : use constructor with signature (String);
+    private Object convert(String from, Class target) throws ClassCastException{
+
+        // First fallback : use scanned converters
+        if (converters.containsKey(target)){
+            List<Converter> adapted_converters = converters.get(target);
+            for (int i=adapted_converters.size()-1; i>=0; i--)
+            {
+                Object x = adapted_converters.get(i).convert(from);
+                if (x != null) {
+                    return x;
+                }
+            }
+        }
+
+        // Second fallback : use constructor with signature (String);
         try {
-            return target.getConstructor(String.class).newInstance(from);
+            Object obj = target.getConstructor(String.class).newInstance(from);
+            System.out.println("Used constructor new "+target.getName()+"(String)");
+            return obj;
         } catch (NoSuchMethodException | IllegalAccessException ignored){}
         catch (InstantiationException e) {
             throw new InstantiationError(e.getMessage());
@@ -325,36 +401,14 @@ public class Database<T> {
             throw new Error(e);
         }
 
-        // Second fallback : use scanned converters
-        List<ConverterIntrf> adapted_converters = converters.get(target);
-        for (int i=adapted_converters.size()-1; i>=0; i--)
-        {
-            Object x = adapted_converters.get(i).convert(from);
-            if (x != null) {
-                return x;
-            }
-        }
         throw new ClassCastException("No converter found");
+
     }
 
-    void scan_converters(){
-        for (Field field: clss.getFields()){
-            if (field.isAnnotationPresent(Converter.class)) {
-                Class support = (field.getAnnotation(Converter.class)).target();
-                try { register_converter(support, (ConverterIntrf) field.get(null)); }
-                catch (IllegalAccessException e){
-                    throw new Error("easysqlite.ConverterIntrf should be static !");
-                }
-            }
-        }
-    }
+
 
 
     //endregion
-
-
-
-
 
 
 }

@@ -1,5 +1,5 @@
 package easysqlite;
 
-public  interface ConverterIntrf {
+public  interface Converter {
     public Object convert(String from);
 }
