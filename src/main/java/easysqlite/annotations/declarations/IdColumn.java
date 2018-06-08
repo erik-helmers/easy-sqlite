@@ -1,5 +1,7 @@
-package easysqlite.annotations;
+package easysqlite.annotations.declarations;
 
+
+import easysqlite.annotations.core.AnnotType;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -11,4 +13,5 @@ import java.lang.annotation.Target;
 @Target(ElementType.FIELD)
 public @interface IdColumn {
     public String value() default "id";
+    static AnnotType type = AnnotType.COLUMN;
 }

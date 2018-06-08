@@ -1,4 +1,4 @@
-package easysqlite.annotations;
+package easysqlite.annotations.declarations;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

@@ -1,9 +1,13 @@
 package easysqlite;
 
-import easysqlite.annotations.*;
+import easysqlite.annotations.core.TableHandler;
+import easysqlite.annotations.declarations.Column;
+import easysqlite.annotations.declarations.ConverterTarget;
+import easysqlite.annotations.declarations.IdColumn;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -19,6 +23,7 @@ public class Repository<T> {
     private Class<T> clss;
     private String table_name;
 
+    private TableHandler<Annotation> table_handler;
     private List<Field> columns;
     private List<String> columns_name;
     private String formatted_columns_name;
@@ -51,6 +56,26 @@ public class Repository<T> {
 
     //region init-utils
     // ============================================ INIT-UTILS ============================================
+
+    /**
+     * Check class validity
+     * @param clss the class to test
+     * @return validity
+     */
+     private void validate_class(Class<T> clss){
+
+        this.clss = clss;
+        this.table_handler =  extract_handler(getESAnnotation(clss).orElseThrow(MissingAnnotationException::new), TableHandler.class);
+
+        this.table_name = table_handler.getName();
+        this.columns = this.table_handler.columns(clss);
+        this.columns_name = this.table_handler.columns_name(this.columns);
+        
+
+        this.formatted_columns_name = format_columns_name();
+        set_default_deserializer();
+        scan_deserializers();
+    }
 
     /**
      * Create a connection to path, and execute populate statement
@@ -92,36 +117,9 @@ public class Repository<T> {
         return create_connection(path, populate);
     }
 
-    /**
-     * Check class validity
-     * @param clss the class to test
-     * @return validity
-     */
-     private void validate_class(Class<T> clss){
-
-        if (!clss.isAnnotationPresent(Table.class) && !clss.isAnnotationPresent(AllFieldsTable.class)){
-            throw new IllegalArgumentException("Class should be annotated with @Table or @AllFieldsTable");
-        }
-
-        this.clss = clss;
-
-        if (clss.isAnnotationPresent(Table.class)){
-            this.table_name = clss.getAnnotation(Table.class).value();
-            this.columns = get_columns_field();
-            this.columns_name = get_columns_name_from_annot();
-        } else if (clss.isAnnotationPresent(AllFieldsTable.class)){
-            this.table_name = clss.getAnnotation(AllFieldsTable.class).value();
-            this.columns = get_all_fields();
-            this.columns_name = get_columns_name_from_field();
-        }
-
-        this.formatted_columns_name = format_columns_name();
-        set_default_deserializer();
-        scan_deserializers();
-    }
-
 
     //endregion
+
 
     //endregion
 
@@ -140,7 +138,7 @@ public class Repository<T> {
         List<Object> values = get_columns_values(columns, obj);
 
         String sql = forge_sql_insert_statement();
-        
+
         try (PreparedStatement pstmt = connection.prepareStatement(sql)){
             for (int i=0; i<values.size(); i++) {
                 if (values.get(i) != null) {
@@ -171,7 +169,7 @@ public class Repository<T> {
                     pstmt.setString(i + 1, values.get(i).toString());
                 pstmt.addBatch();
 
-                tour ++; // Some connections refuse more than 1000 at once
+                tour ++; // Some connections refuse more than 1000 at once a
                 if (tour%1000==0)
                     pstmt.executeBatch();
             }
@@ -182,10 +180,12 @@ public class Repository<T> {
     //region utils
     // ============================================== UTILS ===============================================
 
+
     /**
      * Get fields anotated with @Column
      * @return List of fields
      */
+    @Deprecated
     private List<Field> get_columns_field(){
         List<Field> output = new ArrayList<>();
         for (Field field: clss.getFields()){
@@ -196,11 +196,13 @@ public class Repository<T> {
         return output;
     }
 
+    @Deprecated
     private List<Field> get_all_fields(){
         // TODO: 05/06/18 add @Exclude ?
         return new ArrayList<>(Arrays.asList(clss.getFields()));
     }
 
+    @Deprecated
     private List<String> get_columns_name_from_annot(){
         List<String> output = new ArrayList<>();
         for (Field field : columns){
@@ -224,6 +226,7 @@ public class Repository<T> {
      * Get fields anotated with @Column
      * @return List of fields
      */
+    @Deprecated
     private List<Field> get_columns_field_incld_id(){
         List<Field> output = new ArrayList<>();
         for (Field field: clss.getFields()){
@@ -234,6 +237,7 @@ public class Repository<T> {
         return output;
     }
 
+    @Deprecated
     private List<String> get_columns_name_from_field(){
         return columns.stream()
                 .map(Field::getName)
@@ -245,6 +249,7 @@ public class Repository<T> {
      * @param obj the object to use
      * @return list of object: values of the fields
      */
+    @Deprecated
     private List<Object> get_columns_values(List<Field> fields, T obj){
         List<Object> output = new ArrayList<>();
         for (Field field : fields) {
@@ -362,7 +367,7 @@ public class Repository<T> {
     //endregion
 
     //region type conversion
-    // ========================================= TYPE CONVERSION ========================================== 
+    // ========================================= TYPE CONVERSION ==========================================
 
     //region type-conversion-inits
     // ====================================== TYPE-CONVERSION-INITS =======================================
