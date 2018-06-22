@@ -1,5 +1,6 @@
-package easysqlite;
+package easysqlite.core;
 
+import easysqlite.annotations.core.AnnotationHandler;
 import easysqlite.annotations.core.ESAnnotation;
 
 import java.lang.annotation.Annotation;
@@ -19,8 +20,11 @@ public class Scanner {
      * @param clss to test
      * @return presence
      */
-    public static boolean is_ESAnnotation_present(Class clss){
+    public static boolean has_ESAnnotation(Class clss){
         return getESAnnotation(clss).isPresent();
+    }
+    public static boolean has_ESAnnotation(Field field){
+        return getESAnnotation(field).isPresent();
     }
 
 
@@ -36,14 +40,16 @@ public class Scanner {
      * @param <X> the expected returned handler type
      * @return a new handler of type @link handler_target_type
      */
-    public static <X> X new_handler(Annotation annotation, Class<X> handler_target_type){
+    public static <X extends AnnotationHandler> X new_handler(Annotation annotation, Class<X> handler_target_type){
         Class<?> handler_class = annotation.annotationType().getAnnotation(ESAnnotation.class).handler();
         try {
-            return (X)handler_class.getConstructor(Annotation.class).newInstance(annotation);
+            X obj = (X)handler_class.getConstructor().newInstance();
+            obj.setAnnotation(annotation);
+            return obj;
         } catch (InstantiationException | InvocationTargetException e) {
             throw new Error(e);
         } catch (IllegalAccessException | NoSuchMethodException e) {
-            throw new Error("The handler should have a public default constructor !");
+            throw new Error(String.format("This class %s should have a public default constructor !", handler_class.getName()), e);
         }
     }
 
@@ -55,13 +61,20 @@ public class Scanner {
      * @return optional ESAnnotation
      */
 
+
+    //Be careful with this : use annotationType() and not getClass() !
     public static Optional<Annotation> getESAnnotation(Class clss){
-        return getAnnotation(clss, x -> x.getClass().isAnnotationPresent(ESAnnotation.class));
+        return getAnnotation(clss, annotation -> annotation.annotationType().isAnnotationPresent(ESAnnotation.class));
     }
 
     public static Optional<Annotation> getESAnnotation(Field field){
-        return getAnnotation(field, x -> x.getClass().isAnnotationPresent(ESAnnotation.class));
+        return getAnnotation(field, annotation -> annotation.annotationType().isAnnotationPresent(ESAnnotation.class));
     }
+
+    /**
+     * Search for a table type annotation
+     */
+
 
     /**
      * Search for annotation validating the predicate
@@ -69,7 +82,8 @@ public class Scanner {
 
     public static Optional<Annotation> getAnnotation(Annotation[] annotations, Predicate<Annotation> matcher){
         for (Annotation annot : annotations){
-            if (matcher.test(annot)) return Optional.of(annot);
+            if (matcher.test(annot))
+                return Optional.of(annot);
         }
         return Optional.empty();
     }

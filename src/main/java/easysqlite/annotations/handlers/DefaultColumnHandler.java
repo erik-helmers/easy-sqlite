@@ -8,9 +8,10 @@ import java.lang.reflect.Field;
 
 public class DefaultColumnHandler extends ColumnHandler {
 
-    //region inheritance-stuff
-    // ======================================== INHERITANCE-STUFF =========================================
-
+    @Override
+    public Object get_value_on_insert(Field field, Object object) throws IllegalAccessException {
+        return field.get(object);
+    }
     private Wrapper annotation = new Wrapper();
 
     /**
@@ -39,18 +40,8 @@ public class DefaultColumnHandler extends ColumnHandler {
     //region LOGIC
     // ============================================== LOGIC =============================================== 
     
-    @Override
-    public Object getValue(Field field, Object object) throws IllegalAccessException {
-        return field.get(object);
-    }
-
-    /**
-     * A wrapper for DefaultColumnHandler
-     * It's main purpose is to give access to Annotation values
-     * Even if it's derived by another class
-     * in which case, the children's call setWrapper() with a custom
-     * wrapper extending DefaultColumnHandler.Wrapper
-     */
+    //region inheritance-stuff
+    // ======================================== INHERITANCE-STUFF =========================================
     public static class Wrapper {
         /**
          * A private access to the annotation
@@ -71,6 +62,15 @@ public class DefaultColumnHandler extends ColumnHandler {
             return annotation.value();
         }
     }
+
+    /**
+     * A wrapper for DefaultColumnHandler
+     * It's main purpose is to give access to Annotation values
+     * Even if it's derived by another class
+     * in which case, the children's call setWrapper() with a custom
+     * wrapper extending DefaultColumnHandler.Wrapper
+     */
+
 
     //endregion
 }

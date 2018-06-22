@@ -1,27 +1,37 @@
 package easysqlite.annotations.handlers;
 
-import easysqlite.annotations.declarations.Exclude;
-
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 
-public class ExcludeHandler extends DefaultColumnHandler{
+public class ExcludeHandler extends DefaultColumnHandler {
 
-    private Wrapper annotation;
-
-    public ExcludeHandler(Annotation annotation) {
-        super(annotation);
+    @Override
+    public boolean required_on_query() {
+        return false;
     }
 
-    public static class Wrapper extends DefaultColumnHandler.Wrapper {
-        Exclude annotation;
-        @Override
-        public void setAnnotation(Annotation annotation) {
-            super.setAnnotation(annotation);
-            this.annotation = (Exclude)annotation;
-        }
-
-        @Override
-        public String name() {
-            return "";
-        }
+    @Override
+    public boolean required_on_insert() {
+        return false;
     }
+
+    @Override
+    public void setAnnotation(Annotation annotation) {
+    }
+
+    @Override
+    protected void setWrapper(Wrapper wrapper) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getName(Field field) {
+        throw new UnsupportedOperationException("Did you check required_on_query|insert ?");
+    }
+
+    @Override
+    public Object get_value_on_insert(Field field, Object object) throws IllegalAccessException {
+        throw new UnsupportedOperationException("Did you check required_on_query|insert ?");
+
+    }
+}

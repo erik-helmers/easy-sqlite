@@ -1,6 +1,6 @@
 
 CREATE TABLE IF NOT EXISTS cars(
-  id text PRIMARY KEY,
+  id integer PRIMARY KEY NOT NULL,
   seats integer,
   price integer,
   proprietary text

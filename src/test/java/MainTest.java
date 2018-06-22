@@ -1,30 +1,29 @@
-import easysqlite.Repository;
-import easysqlite.annotations.declarations.Column;
-import easysqlite.annotations.declarations.Table;
-import lombok.Builder;
-import lombok.ToString;
+import easysqlite.core.Repository;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
-import java.util.UUID;
+
 
 public class MainTest {
 
-    Repository<Vehicle> main;
+    Repository<Car> main;
 
     @Before
     public void setUp() throws Exception {
-        create();
+        Path file = Paths.get(getClass().getClassLoader().getResource("vehicles_create.sql").getFile());
+        main = new Repository<>(Car.class, "vehicles.db", file.toFile());
     }
+
 
     @Test
     public void create(){
-        Path file = Paths.get(getClass().getClassLoader().getResource("vehicles_create.sql").getFile());
-        main = new Repository<>(Vehicle.class, "vehicles.db", file.toFile());
+
     }
 
     @Test
@@ -33,8 +32,24 @@ public class MainTest {
         int y = new Random().nextInt()%100000;
         String x = String.valueOf(new Random().nextInt()%100);
 
-        Vehicle vehicle = new Vehicle(UUID.randomUUID().toString(), "Agent "+x, y%4, y);
+        Car vehicle = new Car(y, "Agent "+x, 3, y);
         main.save(vehicle);
+    }
+
+    @Test
+    public void write_2() throws SQLException{
+        Car car = new Car(0, "007", 2, 10000000);
+        main.save(car);
+        System.out.println(car);
+    }
+
+    @Test
+    public void write_3() throws SQLException {
+        List<Car> cars = new ArrayList<>();
+        for (int i=0; i<20; i++){
+            cars.add(new Car(0, "Mr Number "+String.valueOf(i), i%4, i*354%120+3));
+        }
+        main.save(cars);
     }
 
     @Test
@@ -45,64 +60,10 @@ public class MainTest {
     @Test
     public void big_op() throws Exception{
 
-        System.out.print("creating a new vehicle...");
-
-        int y = new Random().nextInt()%100000;
-        String x = String.valueOf(new Random().nextInt()%100);
-        Vehicle vehicle = new Vehicle(UUID.randomUUID().toString(), "Agent "+x, y%4, y);
-
-        System.out.println(vehicle.toString());
-
-        main.save(vehicle);
-
-        System.out.print("Searching by id...");
-        System.out.println(
-                main.search("id", vehicle.id).get(0).id.equals(vehicle.id) ?
-                        "OK" : "FAIL");
-        System.out.print("Searching by proprietary...");
-        System.out.println(
-                main.search("proprietary", vehicle.proprietary).get(0).proprietary.equals(vehicle.proprietary) ?
-                        "OK" : "FAIL");
-
-        Double my_number = new Double("3");
-
 
     }
 
-    @ToString
-    @Table("cars")
-    public static class Vehicle{
 
-        @Column("id")
-        public String id;
-        @Column("proprietary")
-        public String proprietary;
-        @Column("seats")
-        public Double seats;
-        @Column
-        public int price;
-
-
-        @Builder
-        public Vehicle(String id, String proprietary, Double seats, int price) {
-            this.id = id;
-            this.proprietary = proprietary;
-            this.seats = seats;
-            this.price = price;
-        }
-
-        @Builder
-        public Vehicle(String id, String proprietary, int seats, int price) {
-            this.id = id;
-            this.proprietary = proprietary;
-            this.seats = new Double(seats);
-            this.price = price;
-        }
-
-        public Vehicle(){};
-
-
-    }
 
 
 
