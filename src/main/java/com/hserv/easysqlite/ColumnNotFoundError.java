@@ -7,7 +7,7 @@ public class ColumnNotFoundError extends Error {
         super("Column not found ! name is "+name);
     }
     public ColumnNotFoundError(Field field) {
-        super("Column not found ! name is "+field.getName());
+        super("Column not found ! name is '"+field.getName()+"'");
     }
 
 }

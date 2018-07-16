@@ -1,5 +1,5 @@
 package easysqlite.serialization;
 
 public  interface Deserialization {
-    public Object deserialize(String from);
+    Object deserialize(String from, Class target, Class source);
 }

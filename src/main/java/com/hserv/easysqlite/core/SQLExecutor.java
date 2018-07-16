@@ -1,4 +1,4 @@
-package easysqlite.annotations;
+package easysqlite.core;
 
 import lombok.Builder;
 
@@ -32,37 +32,19 @@ public class SQLExecutor {
             return keys.getInt(1);
 
         } catch (SQLException e){
-            throw new Error("failed insert", e);
+            throw new Error("failed insert stmt="+this.statement, e);
         }
 
     }
 
-    /**
-     * Execute a large insert : @warning TOO SLOOOOW
-     * @param objects objects to insert
-     * @return generated row ids
-     */
 
-    @Deprecated
-    public <T> List<Integer> insert_and_get_ids(List<T> objects){
-        List<Integer> output = new ArrayList<>();
-        try (PreparedStatement pstmt = connection.prepareStatement(statement, Statement.RETURN_GENERATED_KEYS)) {
-            for (Object obj : objects) {
-                args_setter.setArgs(pstmt, obj);
-
-                //LOL leak of utils to add all int[]
-                int changed = pstmt.executeUpdate();
-                ResultSet rs = pstmt.getGeneratedKeys();
-                while (rs.next()){
-                    output.add(rs.getInt(1));
-                }
-
-            }
-
-        } catch(SQLException e){
-            throw new Error("failed to execute large insert", e);
+    public void execute(){
+        try (PreparedStatement pstmt=  connection.prepareStatement(statement)){
+            args_setter.setArgs(pstmt, null);
+            pstmt.execute();
+        } catch (SQLException e) {
+            throw new Error("failed", e);
         }
-        return output;
     }
 
     public <T> void execute_batch_insert(List<T> objects){

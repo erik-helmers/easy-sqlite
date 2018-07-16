@@ -63,7 +63,7 @@ public AllFieldsTableHandler(){}
     List<SQLColumn> default_field_as_column(Class clss){
 
         List<SQLColumn> output = new ArrayList<>();
-        ColumnHandler handler = Scanner.new_handler(newColumn(), ColumnHandler.class);
+        ColumnHandler handler = Scanner.new_handler(newColumn());
 
         for (Field field: clss.getFields()){
             if (!Scanner.has_ESAnnotation(field))

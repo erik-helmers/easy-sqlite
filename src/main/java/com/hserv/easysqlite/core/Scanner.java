@@ -1,5 +1,6 @@
 package easysqlite.core;
 
+import easysqlite.annotations.core.AnnotType;
 import easysqlite.annotations.core.AnnotationHandler;
 import easysqlite.annotations.core.ESAnnotation;
 
@@ -21,10 +22,10 @@ public class Scanner {
      * @return presence
      */
     public static boolean has_ESAnnotation(Class clss){
-        return getESAnnotation(clss).isPresent();
+        return getTableAnnotation(clss).isPresent();
     }
     public static boolean has_ESAnnotation(Field field){
-        return getESAnnotation(field).isPresent();
+        return getColumnAnnotation(field).isPresent();
     }
 
 
@@ -34,13 +35,12 @@ public class Scanner {
     // ============================================ EXTRACTORS ============================================
 
     /**
-     * Create new handler from ESAnnotation
+     * Create new handler from ESAnnotation with the included handler
      * @param annotation an ESAnnotation
-     * @param handler_target_type the expected returned handler class
      * @param <X> the expected returned handler type
      * @return a new handler of type @link handler_target_type
      */
-    public static <X extends AnnotationHandler> X new_handler(Annotation annotation, Class<X> handler_target_type){
+    public static <X extends AnnotationHandler> X new_handler(Annotation annotation){
         Class<?> handler_class = annotation.annotationType().getAnnotation(ESAnnotation.class).handler();
         try {
             X obj = (X)handler_class.getConstructor().newInstance();
@@ -63,12 +63,16 @@ public class Scanner {
 
 
     //Be careful with this : use annotationType() and not getClass() !
-    public static Optional<Annotation> getESAnnotation(Class clss){
-        return getAnnotation(clss, annotation -> annotation.annotationType().isAnnotationPresent(ESAnnotation.class));
+    public static Optional<Annotation> getTableAnnotation(Class clss){
+        return getAnnotation(clss, annotation ->
+                annotation.annotationType().isAnnotationPresent(ESAnnotation.class)
+                && annotation.annotationType().getAnnotation(ESAnnotation.class).type().equals(AnnotType.TABLE));
     }
 
-    public static Optional<Annotation> getESAnnotation(Field field){
-        return getAnnotation(field, annotation -> annotation.annotationType().isAnnotationPresent(ESAnnotation.class));
+    public static Optional<Annotation> getColumnAnnotation(Field field){
+        return getAnnotation(field, annotation ->
+                annotation.annotationType().isAnnotationPresent(ESAnnotation.class)
+                && annotation.annotationType().getAnnotation(ESAnnotation.class).type().equals(AnnotType.COLUMN));
     }
 
     /**

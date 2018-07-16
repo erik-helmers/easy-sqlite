@@ -1,3 +1,3 @@
 Manifest-Version: 1.0
-Class-Path: sqlite-jdbc-3.23.1.jar
+Main-Class: easysqlite.Main
 

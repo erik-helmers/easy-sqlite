@@ -61,9 +61,9 @@ public class DefaultTableHandler extends TableHandler {
     protected List<SQLColumn> get_columns(Class clss) {
         List<SQLColumn> columns = new ArrayList<>();
         for (Field field: clss.getFields()) {
-            Optional<Annotation> annot = Scanner.getESAnnotation(field);
+            Optional<Annotation> annot = Scanner.getColumnAnnotation(field);
             if (annot.isPresent()){
-                ColumnHandler handler = Scanner.new_handler(annot.get(), ColumnHandler.class);
+                ColumnHandler handler = Scanner.new_handler(annot.get());
                 columns.add(new SQLColumn(handler, field));
             }
         }

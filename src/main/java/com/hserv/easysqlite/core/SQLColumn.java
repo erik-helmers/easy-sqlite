@@ -15,7 +15,7 @@ public class SQLColumn {
     }
 
     public SQLColumn(Field field, Annotation annotation){
-        this.handler = Scanner.new_handler(annotation, ColumnHandler.class);
+        this.handler = Scanner.new_handler(annotation);
         this.field = field;
     }
 
@@ -23,4 +23,8 @@ public class SQLColumn {
         return handler.getName(field);
     }
 
+    @Override
+    public String toString() {
+        return "SQLColumn('"+field.getName()+"')";
+    }
 }

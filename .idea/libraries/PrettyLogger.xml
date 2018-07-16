@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="PrettyLogger">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../Logger/out/artifacts/PrettyLogger_jar/PrettyLogger.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
